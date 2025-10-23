@@ -42,3 +42,12 @@ class ProductResponse(ProductBase):
 
     class Config:
         from_attributes = True
+
+class ProductDetailResponse(ProductResponse):
+    category_name: str
+    in_stock: int
+    stock_quantity: int
+    low_stock: bool
+
+    class Config:
+        from_attributes = True

@@ -1,20 +1,20 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 class CustomerProfile(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
     phone_number: str
-    date_of_birth: Optional[str] = None
+    date_of_birth: Optional[date] = None  # Changed from str to date
     gender: Optional[str] = None
 
 class CustomerProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
-    date_of_birth: Optional[str] = None
+    date_of_birth: Optional[date] = None  # Changed from str to date
     gender: Optional[str] = None
 
 class CustomerResponse(CustomerProfile):

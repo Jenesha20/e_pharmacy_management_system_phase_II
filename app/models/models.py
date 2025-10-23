@@ -5,6 +5,9 @@ from sqlalchemy import (
 from sqlalchemy.sql import func
 from sqlalchemy.orm import declarative_base, relationship
 from enum import Enum as PyEnum
+from sqlalchemy import DateTime
+from datetime import datetime
+
 
 Base = declarative_base()
 
@@ -95,8 +98,8 @@ class CustomerAddress(Base):
     zip_code = Column(String(20), nullable=False)
     country = Column(String(100), nullable=False)
     is_default = Column(Boolean, default=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, server_default=func.now())  # Use DateTime instead of TIMESTAMP
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())  # Use DateTime instead of TIMESTAMP
 
     customer = relationship("Customer", back_populates="addresses")
 
@@ -134,6 +137,11 @@ class Product(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     category = relationship("Category", back_populates="products")
+    prescription_items = relationship("PrescriptionItem", back_populates="product") 
+    inventory_items = relationship("PharmacyInventory", back_populates="product")
+    order_items = relationship("OrderItem", back_populates="product")
+    cart_items = relationship("CartItem", back_populates="product")
+
 
 
 class PharmacyInventory(Base):
@@ -152,6 +160,10 @@ class PharmacyInventory(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+    product = relationship("Product", back_populates="inventory_items")
+    order_item_batches = relationship("OrderItemBatch", back_populates="inventory")
+
+
 
 class Prescription(Base):
     __tablename__ = "prescriptions"
@@ -165,7 +177,12 @@ class Prescription(Base):
     uploaded_at = Column(TIMESTAMP, server_default=func.now())
     verified_at = Column(TIMESTAMP)
 
+    #new field
+    is_used = Column(Boolean, default=False)  # ✅ once used in an order, mark True
+    used_in_order_id = Column(Integer, ForeignKey("orders.order_id"), nullable=True)  # link to order for audit
+
     customer = relationship("Customer", back_populates="prescriptions")
+    prescription_items = relationship("PrescriptionItem", back_populates="prescription", cascade="all, delete-orphan") 
 
 
 class PrescriptionItem(Base):
@@ -176,6 +193,9 @@ class PrescriptionItem(Base):
     product_id = Column(Integer, ForeignKey("products.product_id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    prescription = relationship("Prescription", back_populates="prescription_items")  # Add back_populates
+    product = relationship("Product")
 
 
 class Order(Base):
@@ -204,7 +224,16 @@ class Order(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+
     customer = relationship("Customer", back_populates="orders")
+    order_items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    order_taxes = relationship("OrderTaxDetail", back_populates="order", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+    refunds = relationship("Refund", back_populates="order", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="order", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="order", cascade="all, delete-orphan")
+    prescription = relationship("Prescription", foreign_keys=[prescription_id])
+
 
 
 class OrderItem(Base):
@@ -220,6 +249,11 @@ class OrderItem(Base):
     prescription_verified = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    order = relationship("Order", back_populates="order_items")
+    product = relationship("Product", back_populates="order_items")
+    order_item_batches = relationship("OrderItemBatch", back_populates="order_item")
+
+
 
 class OrderItemBatch(Base):
     __tablename__ = "order_item_batches"
@@ -234,6 +268,10 @@ class OrderItemBatch(Base):
     batch_number = Column(String(100), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    order_item = relationship("OrderItem", back_populates="order_item_batches")
+    inventory = relationship("PharmacyInventory", back_populates="order_item_batches")
+
+
 
 class OrderTaxDetail(Base):
     __tablename__ = "order_tax_details"
@@ -245,6 +283,9 @@ class OrderTaxDetail(Base):
     gst_rate = Column(DECIMAL(10, 2), nullable=False)
     gst_amount = Column(DECIMAL(10, 2), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    order = relationship("Order", back_populates="order_taxes")
+
 
 
 class Payment(Base):
@@ -260,6 +301,9 @@ class Payment(Base):
     paid_at = Column(TIMESTAMP)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    order = relationship("Order", back_populates="payments")
+
 
 
 class Refund(Base):
@@ -280,6 +324,9 @@ class Refund(Base):
     processed_at = Column(TIMESTAMP)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    order = relationship("Order", back_populates="refunds")
+
+
 
 class Invoice(Base):
     __tablename__ = "invoices"
@@ -290,6 +337,9 @@ class Invoice(Base):
     invoice_date = Column(Date, nullable=False)
     file_path = Column(String(500))
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    order = relationship("Order", back_populates="invoices")
+
 
 
 class CartItem(Base):
@@ -303,6 +353,7 @@ class CartItem(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     customer = relationship("Customer", back_populates="cart_items")
+    product = relationship("Product", back_populates="cart_items")
 
 
 class Notification(Base):
@@ -318,6 +369,9 @@ class Notification(Base):
     action_url = Column(String(500))
     created_at = Column(TIMESTAMP, server_default=func.now())
     read_at = Column(TIMESTAMP)
+    
+    customer = relationship("Customer")
+    order = relationship("Order", back_populates="notifications")
 
 
 class Backup(Base):
